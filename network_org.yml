@@ -1,0 +1,216 @@
+Metadata:
+  AWSToolsMetrics:
+    IaC_Generator: arn:aws:cloudformation:ap-northeast-1:032465545722:generatedTemplate/065a419e-4a22-4305-b370-0f304a6a6c48
+Resources:
+  EC2VPC00vpc0e09d49bebcafd25000dH3SK:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::VPC
+    DeletionPolicy: Delete
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      EnableDnsHostnames: true
+      Tags:
+        - Value: poc-vpc
+          Key: Name
+  # EC2DHCPOptions00dopt64181b0300uSnXm:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::DHCPOptions
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     DomainName: ap-northeast-1.compute.internal
+  #     DomainNameServers:
+  #       - AmazonProvidedDNS
+  #     Tags: []
+  # EC2VPCDHCPOptionsAssociation00vpc0e09d49bebcafd25000rOVIB:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::VPCDHCPOptionsAssociation
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+  #     DhcpOptionsId: !Ref EC2DHCPOptions00dopt64181b0300uSnXm
+  # Route53ResolverResolverRuleAssociation00rslvrautodefinedassocvpc0e09d49bebcafd250internetresolver00wr2Dg:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::Route53Resolver::ResolverRuleAssociation
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     VPCId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+  #     ResolverRuleId: rslvr-autodefined-rr-internet-resolver
+  #     Name: System Rule Association
+  EC2InternetGateway00igw01dbbbb1d150f048f0060ecY:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::InternetGateway
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Value: poc-igw
+          Key: Name
+  EC2Subnet00subnet0b6a10d5bbda8a2b100EQ13c:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+      MapPublicIpOnLaunch: false
+      EnableDns64: false
+      AvailabilityZoneId: apne1-az4
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: ip-name
+        EnableResourceNameDnsAAAARecord: false
+      CidrBlock: 10.0.0.0/20
+      Ipv6Native: false
+      Tags:
+        - Value: poc-subnet-public1-ap-northeast-1a
+          Key: Name
+  EC2Subnet00subnet0cbce22b56e4ce67d00zR5vZ:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+      MapPublicIpOnLaunch: false
+      EnableDns64: false
+      AvailabilityZoneId: apne1-az1
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: ip-name
+        EnableResourceNameDnsAAAARecord: false
+      CidrBlock: 10.0.16.0/20
+      Ipv6Native: false
+      Tags:
+        - Value: poc-subnet-public2-ap-northeast-1c
+          Key: Name
+  # EC2NetworkAcl00acl097a9864f162b961c00d4p2Q:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::NetworkAcl
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+  #     Tags: []
+  # EC2SubnetNetworkAclAssociation00aclassoc07f809a76f3ce9be700oqDhF:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::SubnetNetworkAclAssociation
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     NetworkAclId: !Ref EC2NetworkAcl00acl097a9864f162b961c00d4p2Q
+  #     SubnetId: !Ref EC2Subnet00subnet0b6a10d5bbda8a2b100EQ13c
+  # EC2SubnetNetworkAclAssociation00aclassoc0d9b182dd27ec4e9d004XSkd:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::SubnetNetworkAclAssociation
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     NetworkAclId: !Ref EC2NetworkAcl00acl097a9864f162b961c00d4p2Q
+  #     SubnetId: !Ref EC2Subnet00subnet0cbce22b56e4ce67d00zR5vZ
+  EC2SecurityGroup00sg083a0651e0335088600hYPbo:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupDescription: default VPC security group
+      GroupName: default
+      VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+        - IpProtocol: "-1"
+          FromPort: -1
+          SourceSecurityGroupId: !GetAtt EC2VPC00vpc0e09d49bebcafd25000dH3SK.DefaultSecurityGroup
+          ToPort: -1
+          # SourceSecurityGroupOwnerId: "032465545722"
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+  # EC2RouteTable00rtb0b64e101c65175e0b00Jbinz:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::RouteTable
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+  EC2RouteTable00rtb098335d279a6555e300I053f:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::RouteTable
+    DeletionPolicy: Delete
+    Properties:
+      VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+      Tags:
+        - Value: poc-rtb-public
+          Key: Name
+  # EC2Route00rtb0b64e101c65175e0b00sxX0t:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::Route
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     RouteTableId: !Ref EC2RouteTable00rtb0b64e101c65175e0b00Jbinz
+  #     DestinationCidrBlock: !GetAtt EC2VPC00vpc0e09d49bebcafd25000dH3SK.CidrBlock
+  #     GatewayId: local
+  #     VpcEndpointId: local
+  # EC2Route00rtb098335d279a6555e300hiJLv:
+  #   UpdateReplacePolicy: Retain
+  #   Type: AWS::EC2::Route
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     RouteTableId: !Ref EC2RouteTable00rtb098335d279a6555e300I053f
+  #     DestinationCidrBlock: !GetAtt EC2VPC00vpc0e09d49bebcafd25000dH3SK.CidrBlock
+  #     GatewayId: local
+  #     VpcEndpointId: local
+  EC2Route00rtb098335d279a6555e300CyehO:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::Route
+    DeletionPolicy: Delete
+    Properties:
+      RouteTableId: !Ref EC2RouteTable00rtb098335d279a6555e300I053f
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref EC2InternetGateway00igw01dbbbb1d150f048f0060ecY
+      # VpcEndpointId: igw-01dbbbb1d150f048f
+  EC2SubnetRouteTableAssociation00rtbassoc0c5f207db603619db00VTEEp:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DeletionPolicy: Delete
+    Properties:
+      RouteTableId: !Ref EC2RouteTable00rtb098335d279a6555e300I053f
+      SubnetId: !Ref EC2Subnet00subnet0b6a10d5bbda8a2b100EQ13c
+  EC2SubnetRouteTableAssociation00rtbassoc0c835cc9f9aee003000KJbdm:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    DeletionPolicy: Delete
+    Properties:
+      RouteTableId: !Ref EC2RouteTable00rtb098335d279a6555e300I053f
+      SubnetId: !Ref EC2Subnet00subnet0cbce22b56e4ce67d00zR5vZ
+  EC2VPCEndpoint00vpce00d39f96fe1d8708700kKI6G:
+    UpdateReplacePolicy: Retain
+    Type: AWS::EC2::VPCEndpoint
+    DeletionPolicy: Delete
+    Properties:
+      PrivateDnsEnabled: false
+      IpAddressType: not-specified
+      DnsOptions:
+        PrivateDnsOnlyForInboundResolverEndpoint: NotSpecified
+        DnsRecordIpType: not-specified
+      ResourceConfigurationArn: ""
+      SecurityGroupIds: []
+      SubnetIds: []
+      ServiceNetworkArn: ""
+      VpcId: !Ref EC2VPC00vpc0e09d49bebcafd25000dH3SK
+      RouteTableIds: []
+      ServiceName: com.amazonaws.ap-northeast-1.s3
+      PolicyDocument:
+        Version: "2008-10-17"
+        Statement:
+          - Resource: "*"
+            Action: "*"
+            Effect: Allow
+            Principal: "*"
+      VpcEndpointType: Gateway
+      Tags:
+        - Value: poc-vpce-s3
+          Key: Name

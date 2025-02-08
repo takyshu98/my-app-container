@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: The template used to create an ECS Cluster from the ECS Console.
+Parameters:
+  Env:
+    Description: Environment
+    Type: String
+  System:
+    Description: System Name
+    Type: String
+  Image:
+    Description: Image
+    Type: String
+    Default: 032465545722.dkr.ecr.ap-northeast-1.amazonaws.com/poc/my-app-container:latest
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${Env}--${System}--ecs--cluster
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      ClusterSettings:
+        - Name: containerInsights
+          Value: disabled
+      ServiceConnectDefaults:
+        Namespace: !Sub ${Env}--${System}
+      Tags:
+        - Key: Name
+          Value: !Sub ${Env}--${System}--ecs--cluster
+  EcsTaskDefinition:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ECS::TaskDefinition"
+    DeletionPolicy: "Delete"
+    Properties:
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - "EcsTaskExecutionRole"
+          - "Arn"
+      RuntimePlatform:
+        OperatingSystemFamily: "LINUX"
+        CpuArchitecture: "X86_64"
+      Volumes: []
+      InferenceAccelerators: []
+      Memory: "1024"
+      PlacementConstraints: []
+      ContainerDefinitions:
+        - ExtraHosts: []
+          Secrets: []
+          VolumesFrom: []
+          Cpu: 0
+          EntryPoint: []
+          DnsServers: []
+          Image: !Ref Image
+          Essential: true
+          LogConfiguration:
+            SecretOptions: []
+            Options:
+              awslogs-group: "/ecs/${Env}--${System}--etd"
+              mode: "non-blocking"
+              max-buffer-size: "25m"
+              awslogs-create-group: "true"
+              awslogs-region: "ap-northeast-1"
+              awslogs-stream-prefix: "ecs"
+            LogDriver: "awslogs"
+          ResourceRequirements: []
+          EnvironmentFiles: []
+          Name: !Sub ${Env}--${System}--container
+          MountPoints: []
+          DependsOn: []
+          DockerLabels: {}
+          PortMappings:
+            - ContainerPort: 3000
+              AppProtocol: "http"
+              Protocol: "tcp"
+              HostPort: 3000
+              Name: !Sub ${Env}--${System}--container--3000--tcp
+          DockerSecurityOptions: []
+          SystemControls: []
+          Command: []
+          DnsSearchDomains: []
+          Environment: []
+          Links: []
+          CredentialSpecs: []
+          Ulimits: []
+      Cpu: "512"
+      RequiresCompatibilities:
+        - "FARGATE"
+      Family: !Sub ${Env}--${System}--etd
+      NetworkMode: "awsvpc"
+      Tags:
+        - Key: Name
+          Value: !Sub ${Env}--${System}--etd
+  EcsTaskExecutionRole:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::IAM::Role"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      MaxSessionDuration: 3600
+      RoleName: !Sub ${Env}--${System}--ecs-task--iar
+      AssumeRolePolicyDocument:
+        Version: "2008-10-17"
+        Statement:
+          - Action: "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Sid: ""
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Base: 0
+          Weight: 1
+      TaskDefinition: !Ref TaskDefinition
+      ServiceName: !Sub ${Env}--${System}--esv
+      SchedulingStrategy: REPLICA
+      DesiredCount: 1
+      AvailabilityZoneRebalancing: ENABLED
+      LoadBalancers:
+        - ContainerName: !Sub ${Env}--${System}--container
+          ContainerPort: 3000
+          LoadBalancerName: !Ref LoadBalancer
+          TargetGroupArn: !Ref TargetGroup
+      HealthCheckGracePeriodSeconds: "30"
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--system--sg
+          Subnets:
+            - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--public--subnet
+      PlatformVersion: LATEST
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      DeploymentController:
+        Type: ECS
+      ServiceConnectConfiguration:
+        Enabled: false
+      Tags: []
+      EnableECSManagedTags: true
+    DependsOn:
+      - Listener
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Name: !Sub ${Env}--${System}--alb
+      SecurityGroups:
+        - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--system--sg
+      Subnets:
+        - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--public--subnet
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      Name: !Sub ${Env}--${System}--tg
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckProtocol: HTTP
+      VpcId:
+        Fn::ImportValue: !Sub ${Env}--${System}--network--stack--vpc
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "300"
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 3000
+      Protocol: HTTP

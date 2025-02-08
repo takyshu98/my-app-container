@@ -1,0 +1,153 @@
+---
+Metadata:
+  AWSToolsMetrics:
+    IaC_Generator: "arn:aws:cloudformation:ap-northeast-1:032465545722:generatedTemplate/ef2b1cac-7cce-4676-9dc4-5f7620cb31a0"
+Resources:
+  # IAMRole00AWSServiceRoleForECS000BLtZ:
+  #   UpdateReplacePolicy: "Retain"
+  #   Type: "AWS::IAM::Role"
+  #   DeletionPolicy: "Retain"
+  #   Properties:
+  #     Path: "/aws-service-role/ecs.amazonaws.com/"
+  #     ManagedPolicyArns:
+  #       - "arn:aws:iam::aws:policy/aws-service-role/AmazonECSServiceRolePolicy"
+  #     MaxSessionDuration: 3600
+  #     RoleName: "AWSServiceRoleForECS"
+  #     AssumeRolePolicyDocument:
+  #       Version: "2012-10-17"
+  #       Statement:
+  #         - Action: "sts:AssumeRole"
+  #           Effect: "Allow"
+  #           Principal:
+  #             Service: "ecs.amazonaws.com"
+  # EC2Subnet00subnet0b6a10d5bbda8a2b100PNxZP:
+  #   UpdateReplacePolicy: "Retain"
+  #   Type: "AWS::EC2::Subnet"
+  #   DeletionPolicy: "Retain"
+  #   Properties:
+  #     VpcId:
+  #       Ref: "EC2VPC00vpc0e09d49bebcafd25000f6Xug"
+  #     MapPublicIpOnLaunch: false
+  #     EnableDns64: false
+  #     AvailabilityZoneId: "apne1-az4"
+  #     PrivateDnsNameOptionsOnLaunch:
+  #       EnableResourceNameDnsARecord: false
+  #       HostnameType: "ip-name"
+  #       EnableResourceNameDnsAAAARecord: false
+  #     CidrBlock: "10.0.0.0/20"
+  #     Ipv6Native: false
+  #     Tags:
+  #       - Value: "poc-subnet-public1-ap-northeast-1a"
+  #         Key: "Name"
+  # EC2VPC00vpc0e09d49bebcafd25000f6Xug:
+  #   UpdateReplacePolicy: "Retain"
+  #   Type: "AWS::EC2::VPC"
+  #   DeletionPolicy: "Retain"
+  #   Properties:
+  #     CidrBlock: "10.0.0.0/16"
+  #     EnableDnsSupport: true
+  #     InstanceTenancy: "default"
+  #     EnableDnsHostnames: true
+  #     Tags:
+  #       - Value: "poc-vpc"
+  #         Key: "Name"
+  # EC2Subnet00subnet0cbce22b56e4ce67d00C5K4j:
+  #   UpdateReplacePolicy: "Retain"
+  #   Type: "AWS::EC2::Subnet"
+  #   DeletionPolicy: "Retain"
+  #   Properties:
+  #     VpcId:
+  #       Ref: "EC2VPC00vpc0e09d49bebcafd25000f6Xug"
+  #     MapPublicIpOnLaunch: false
+  #     EnableDns64: false
+  #     AvailabilityZoneId: "apne1-az1"
+  #     PrivateDnsNameOptionsOnLaunch:
+  #       EnableResourceNameDnsARecord: false
+  #       HostnameType: "ip-name"
+  #       EnableResourceNameDnsAAAARecord: false
+  #     CidrBlock: "10.0.16.0/20"
+  #     Ipv6Native: false
+  #     Tags:
+  #       - Value: "poc-subnet-public2-ap-northeast-1c"
+  #         Key: "Name"
+  EcsTaskDefinition:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::ECS::TaskDefinition"
+    DeletionPolicy: "Delete"
+    Properties:
+      ExecutionRoleArn:
+        Fn::GetAtt:
+          - "EcsTaskExecutionRole"
+          - "Arn"
+      RuntimePlatform:
+        OperatingSystemFamily: "LINUX"
+        CpuArchitecture: "X86_64"
+      Volumes: []
+      InferenceAccelerators: []
+      Memory: "1024"
+      PlacementConstraints: []
+      ContainerDefinitions:
+        - ExtraHosts: []
+          Secrets: []
+          VolumesFrom: []
+          Cpu: 0
+          EntryPoint: []
+          DnsServers: []
+          Image: "032465545722.dkr.ecr.ap-northeast-1.amazonaws.com/poc/my-app-container:latest"
+          Essential: true
+          LogConfiguration:
+            SecretOptions: []
+            Options:
+              awslogs-group: "/ecs/my-app-container-task-definition"
+              mode: "non-blocking"
+              max-buffer-size: "25m"
+              awslogs-create-group: "true"
+              awslogs-region: "ap-northeast-1"
+              awslogs-stream-prefix: "ecs"
+            LogDriver: "awslogs"
+          ResourceRequirements: []
+          EnvironmentFiles: []
+          Name: "my-app-container"
+          MountPoints: []
+          DependsOn: []
+          DockerLabels: {}
+          PortMappings:
+            - ContainerPort: 3000
+              AppProtocol: "http"
+              Protocol: "tcp"
+              HostPort: 3000
+              Name: "my-app-container-3000-tcp"
+          DockerSecurityOptions: []
+          SystemControls: []
+          Command: []
+          DnsSearchDomains: []
+          Environment: []
+          Links: []
+          CredentialSpecs: []
+          Ulimits: []
+      Cpu: "512"
+      RequiresCompatibilities:
+        - "FARGATE"
+      Family: !Sub ${Env}--${System}--etd
+      NetworkMode: "awsvpc"
+      Tags:
+        - Key: Name
+          Value: !Sub ${Env}--${System}--etd
+  EcsTaskExecutionRole:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::IAM::Role"
+    DeletionPolicy: "Delete"
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      MaxSessionDuration: 3600
+      RoleName: !Sub ${Env}--${System}--ecs-task--iar
+      AssumeRolePolicyDocument:
+        Version: "2008-10-17"
+        Statement:
+          - Action: "sts:AssumeRole"
+            Effect: "Allow"
+            Principal:
+              Service: "ecs-tasks.amazonaws.com"
+            Sid: ""
