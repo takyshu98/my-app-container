@@ -2,7 +2,7 @@ version: 0.2
 
 env:
   variables:
-    CONTAINER_NAME: "my-app-container"
+    CONTAINER_NAME: "poc/my-app-container"
 
 phases:
   pre_build:
