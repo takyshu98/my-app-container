@@ -8,6 +8,30 @@ Parameters:
     Description: System Name
     Type: String
 Resources:
+  # CloudwatchEventRole:
+  #   Type: AWS::IAM::Role
+  #   UpdateReplacePolicy: "Retain"
+  #   DeletionPolicy: "Delete"
+  #   Properties:
+  #     RoleName: !Sub ${Env}--${System}--cloudwatch-event--iar
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - events.amazonaws.com
+  #           Action: sts:AssumeRole
+  #     Path: /
+  #     Policies:
+  #       - PolicyName: CloudWatchEventsPipelineExecution
+  #         PolicyDocument:
+  #           Version: 2012-10-17
+  #           Statement:
+  #             - Effect: Allow
+  #               Action: codepipeline:StartPipelineExecution
+  #               Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}
+
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
     UpdateReplacePolicy: "Retain"
@@ -22,8 +46,6 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
       Policies:
         - PolicyName: PipelineCodeBuildAccess
           PolicyDocument:
@@ -50,6 +72,21 @@ Resources:
                   - codebuild:UpdateReport
                   - codebuild:BatchPutTestCases
                   - codebuild:BatchPutCodeCoverages
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetRepositoryPolicy
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:DescribeImages
+                  - ecr:BatchGetImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
                 Resource: "*"
 
   CodePipelineServiceRole:
@@ -137,26 +174,31 @@ Resources:
         BlockPublicPolicy: True
         IgnorePublicAcls: True
         RestrictPublicBuckets: True
-  CodePipelineArtifactsBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref CodePipelineArtifactsBucket
-      PolicyDocument:
-        Statement:
-          - Action: s3:*
-            Condition:
-              Bool:
-                aws:SecureTransport: "false"
-            Effect: Deny
-            Principal:
-              AWS: "*"
-            Resource:
-              - !GetAtt CodePipelineArtifactsBucket.Arn
-              - !Join
-                - ""
-                - - !GetAtt CodePipelineArtifactsBucket.Arn
-                  - /*
-        Version: "2012-10-17"
+
+  # AmazonCloudWatchEventRule:
+  #   Type: AWS::Events::Rule
+  #   UpdateReplacePolicy: "Retain"
+  #   DeletionPolicy: "Delete"
+  #   Properties:
+  #     EventPattern:
+  #       source:
+  #         - aws.codeconnections
+  #       detail-type:
+  #         - GitSync Repository Sync Status Change
+  #       resources:
+  #         - !Sub "arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/{connection-id}"
+  #       detail:
+  #         event:
+  #           - referenceCreated
+  #           - referenceUpdated
+  #         referenceType:
+  #           - branch
+  #         referenceName:
+  #           - main
+  #     Targets:
+  #       - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${CodePipeline}
+  #         RoleArn: !GetAtt CloudwatchEventRole.Arn
+  #         Id: codepipeline-AppPipeline
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
@@ -168,13 +210,40 @@ Resources:
         Type: CODEPIPELINE
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspec.yml
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - echo Logging in to Amazon ECR...
+                - AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+                - REPOSITORY_URI=${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-1.amazonaws.com/${CONTAINER_NAME}
+                - IMAGE_TAG=$(echo ${CODEBUILD_RESOLVED_SOURCE_VERSION} | cut -c 1-7)
+                - aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.ap-northeast-1.amazonaws.com
+            build:
+              commands:
+                - echo Build started on `date`
+                - echo Building the Docker image...
+                - docker build -t ${REPOSITORY_URI}:latest .
+                - docker tag ${REPOSITORY_URI}:latest ${REPOSITORY_URI}:${IMAGE_TAG}
+            post_build:
+              commands:
+                - echo Build completed on `date`
+                - echo Pushing the Docker images...
+                - docker push ${REPOSITORY_URI}:${IMAGE_TAG}
+                - echo Writing imageDetail json...
+                - printf '{"Version":"1.0","ImageURI":"%s"}' $REPOSITORY_URI:$IMAGE_TAG > imageDetail.json
+          artifacts:
+            files: imageDetail.json
       Environment:
         ComputeType: BUILD_GENERAL1_SMALL
         Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
         ImagePullCredentialsType: CODEBUILD
         PrivilegedMode: false
         Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: CONTAINER_NAME
+            Value: "poc/my-app-container"
       Name: !Sub ${Env}--${System}--pipeline-cb
 
   CodePipeline:
@@ -206,7 +275,7 @@ Resources:
                 OutputArtifactFormat: "CODE_ZIP"
               RunOrder: 1
               OutputArtifacts:
-                - Name: SourceArtifact
+                - Name: App
         - Name: Build
           Actions:
             - Name: Build
@@ -219,9 +288,9 @@ Resources:
                 ProjectName: !Ref CodeBuildProject
               RunOrder: 1
               InputArtifacts:
-                - Name: SourceArtifact
+                - Name: App
               OutputArtifacts:
-                - Name: BuildArtifact
+                - Name: BuildOutput
         - Name: Deploy
           Actions:
             - Name: Deploy
@@ -231,20 +300,20 @@ Resources:
                 Version: "1"
                 Provider: CodeDeployToECS
               Configuration:
-                AppSpecTemplateArtifact: SourceArtifact
-                AppSpecTemplatePath: appspec.yml
-                TaskDefinitionTemplateArtifact: SourceArtifact
+                AppSpecTemplateArtifact: App
+                AppSpecTemplatePath: appspec.yaml
+                TaskDefinitionTemplateArtifact: App
                 TaskDefinitionTemplatePath: taskdef.json
                 ApplicationName:
                   Fn::ImportValue: !Sub ${Env}--${System}--ecs-blue-green--stack--cd--app
                 DeploymentGroupName:
                   Fn::ImportValue: !Sub ${Env}--${System}--ecs-blue-green--stack--cd--dg
-                Image1ArtifactName: BuildArtifact
+                Image1ArtifactName: BuildOutput
                 Image1ContainerName: IMAGE1_NAME
               RunOrder: 1
               InputArtifacts:
-                - Name: SourceArtifact
-                - Name: BuildArtifact
+                - Name: App
+                - Name: BuildOutput
               Region: !Ref AWS::Region
 # ------------------------------------------------------------#
 # Outputs

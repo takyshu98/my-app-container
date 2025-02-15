@@ -249,3 +249,14 @@ Resources:
         Fn::Split:
           - ","
           - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--public--subnet
+Outputs:
+  CodeDeployAppName:
+    Description: CodeDeploy Application Name
+    Value: !Ref CodeDeployApplication
+    Export:
+      Name: !Sub ${AWS::StackName}--cd--app
+  CodeDeployDGName:
+    Description: CodeDeploy Deployment Group Name
+    Value: !Ref CodeDeployDeploymentGroup
+    Export:
+      Name: !Sub ${AWS::StackName}--cd--dg
