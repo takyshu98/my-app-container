@@ -48,13 +48,17 @@ Resources:
                   - s3:GetBucketAcl
                   - s3:GetBucketLocation
               - Effect: Allow
+                Resource: "*"
                 Action:
                   - codebuild:CreateReportGroup
                   - codebuild:CreateReport
                   - codebuild:UpdateReport
                   - codebuild:BatchPutTestCases
                   - codebuild:BatchPutCodeCoverages
+              - Effect: Allow
                 Resource: "*"
+                Action:
+                  - ecs:DescribeTaskDefinition
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
@@ -181,6 +185,10 @@ Resources:
         ImagePullCredentialsType: CODEBUILD
         PrivilegedMode: false
         Type: LINUX_CONTAINER
+        EnvironmentVariables:
+          - Name: ECS_TASK_DEFINITION_ARN
+            Value:
+              Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-ecs-td-arn
       Name: !Sub ${System}-${Env}-cb-build
 
   CodePipeline:
@@ -224,10 +232,6 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
               RunOrder: 1
-              EnvironmentVariables:
-                - Name: ECS_TASK_DEFINITION_ARN
-                  Value:
-                    Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-ecs-td-arn
               InputArtifacts:
                 - Name: SourceArtifact
               OutputArtifacts:
@@ -243,7 +247,7 @@ Resources:
               Configuration:
                 AppSpecTemplateArtifact: SourceArtifact
                 AppSpecTemplatePath: appspec.yml
-                TaskDefinitionTemplateArtifact: SourceArtifact
+                TaskDefinitionTemplateArtifact: BuildArtifact
                 TaskDefinitionTemplatePath: taskdef.json
                 ApplicationName:
                   Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-cd-app-name
