@@ -1,30 +1,32 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: The template used to create an ECS Cluster from the ECS Console.
+Description: ECS Fargate with Blue/Green Deploy Stack
 Parameters:
-  Env:
-    Description: Environment
-    Type: String
   System:
     Description: System Name
+    Type: String
+  Env:
+    Description: Environment
     Type: String
   Image:
     Description: Image
     Type: String
-    Default: "032465545722.dkr.ecr.ap-northeast-1.amazonaws.com/poc/my-app-container:latest"
+    Default: 032465545722.dkr.ecr.ap-northeast-1.amazonaws.com/poc/my-app-container:latest
 Resources:
   EcsLogGroup:
-    UpdateReplacePolicy: Retain
     Type: AWS::Logs::LogGroup
     DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       FieldIndexPolicies: []
       LogGroupClass: STANDARD
-      LogGroupName: !Sub /ecs/${Env}--${System}--etd
+      LogGroupName: !Sub /ecs/${System}-${Env}-ecs-td
       DataProtectionPolicy: {}
   EcsCluster:
     Type: AWS::ECS::Cluster
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      ClusterName: !Sub ${Env}--${System}--ecs--cluster
+      ClusterName: !Sub ${System}-${Env}-ecs-cluster
       CapacityProviders:
         - FARGATE
         - FARGATE_SPOT
@@ -32,14 +34,14 @@ Resources:
         - Name: containerInsights
           Value: disabled
       ServiceConnectDefaults:
-        Namespace: !Sub ${Env}--${System}
+        Namespace: !Sub ${System}-${Env}
       Tags:
         - Key: Name
-          Value: !Sub ${Env}--${System}--ecs--cluster
+          Value: !Sub ${System}-${Env}-ecs-cluster
   EcsTaskDefinition:
-    UpdateReplacePolicy: "Retain"
-    Type: "AWS::ECS::TaskDefinition"
-    DeletionPolicy: "Delete"
+    Type: AWS::ECS::TaskDefinition
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       ExecutionRoleArn:
         Fn::GetAtt:
@@ -73,7 +75,7 @@ Resources:
             LogDriver: "awslogs"
           ResourceRequirements: []
           EnvironmentFiles: []
-          Name: !Sub ${Env}--${System}--container
+          Name: ecs-container
           MountPoints: []
           DependsOn: []
           DockerLabels: {}
@@ -94,31 +96,32 @@ Resources:
       Cpu: "512"
       RequiresCompatibilities:
         - "FARGATE"
-      Family: !Sub ${Env}--${System}--etd
+      Family: !Sub ${System}-${Env}-ecs-td
       NetworkMode: "awsvpc"
       Tags:
         - Key: Name
-          Value: !Sub ${Env}--${System}--etd
+          Value: !Sub ${System}-${Env}-ecs-td
   EcsTaskExecutionRole:
-    UpdateReplacePolicy: "Retain"
-    Type: "AWS::IAM::Role"
-    DeletionPolicy: "Delete"
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Path: "/"
       ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
       MaxSessionDuration: 3600
-      RoleName: !Sub ${Env}--${System}--ecs-task--iar
+      RoleName: !Sub ${System}-${Env}-role-ecs-task-execution
       AssumeRolePolicyDocument:
-        Version: "2008-10-17"
+        Version: 2008-10-17
         Statement:
-          - Action: "sts:AssumeRole"
-            Effect: "Allow"
+          - Action: sts:AssumeRole
+            Effect: Allow
             Principal:
-              Service: "ecs-tasks.amazonaws.com"
-            Sid: ""
+              Service: ecs-tasks.amazonaws.com
   EcsService:
     Type: AWS::ECS::Service
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Cluster: !Ref EcsCluster
       CapacityProviderStrategy:
@@ -126,26 +129,24 @@ Resources:
           Base: 0
           Weight: 1
       TaskDefinition: !Ref EcsTaskDefinition
-      ServiceName: !Sub ${Env}--${System}--esv
+      ServiceName: !Sub ${System}-${Env}-ecs-sv
       SchedulingStrategy: REPLICA
       DesiredCount: 1
       AvailabilityZoneRebalancing: ENABLED
       LoadBalancers:
-        - ContainerName: !Sub ${Env}--${System}--container
+        - ContainerName: ecs-container
           ContainerPort: 3000
           LoadBalancerName: !Ref AWS::NoValue
-          TargetGroupArn: !Ref TargetGroupA
+          TargetGroupArn: !Ref TargetGroup1
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: ENABLED
           SecurityGroups:
-            Fn::Split:
-              - ","
-              - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--system--sg
+            - Fn::ImportValue: !Sub ${System}-${Env}-network-stack-sg-id
           Subnets:
             Fn::Split:
               - ","
-              - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--public--subnet
+              - Fn::ImportValue: !Sub ${System}-${Env}-network-stack-public-subnet-ids
       PlatformVersion: LATEST
       DeploymentController:
         Type: CODE_DEPLOY
@@ -155,48 +156,73 @@ Resources:
       EnableECSManagedTags: true
     DependsOn:
       - Listener
-  TargetGroupA:
+  TargetGroup1:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       HealthCheckPath: /
-      Name: !Sub ${Env}--${System}--group-a--tg
+      Name: !Sub ${System}-${Env}-elb-tg-web-1
       Port: 80
       Protocol: HTTP
       TargetType: ip
       HealthCheckProtocol: HTTP
       VpcId:
-        Fn::ImportValue: !Sub ${Env}--${System}--network--stack--vpc
+        Fn::ImportValue: !Sub ${System}-${Env}-network-stack-vpc-id
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: "300"
   Listener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       DefaultActions:
         - Type: forward
-          TargetGroupArn: !Ref TargetGroupA
-      LoadBalancerArn: !Ref LoadBalancer
+          TargetGroupArn: !Ref TargetGroup1
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
       Port: 80
       Protocol: HTTP
-  TargetGroupB:
+  TargetGroup2:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       HealthCheckPath: /
-      Name: !Sub ${Env}--${System}--group-b--tg
+      Name: !Sub ${System}-${Env}-elb-tg-web-2
       Port: 80
       Protocol: HTTP
       TargetType: ip
       HealthCheckProtocol: HTTP
       VpcId:
-        Fn::ImportValue: !Sub ${Env}--${System}--network--stack--vpc
+        Fn::ImportValue: !Sub ${System}-${Env}-network-stack-vpc-id
       TargetGroupAttributes:
         - Key: deregistration_delay.timeout_seconds
           Value: "300"
+  CodeDeployRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      MaxSessionDuration: 3600
+      RoleName: !Sub ${System}-${Env}-role-cd
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
   CodeDeployDeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       ApplicationName: !Ref CodeDeployApplication
-      DeploymentGroupName: !Sub ${Env}--${System}--cd--dg
+      DeploymentGroupName: !Sub ${System}-${Env}-cd-group
       DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       AutoRollbackConfiguration:
         Enabled: true
@@ -219,44 +245,46 @@ Resources:
               ListenerArns:
                 - !GetAtt Listener.ListenerArn
             TargetGroups:
-              - Name: !GetAtt TargetGroupA.TargetGroupName
-              - Name: !GetAtt TargetGroupB.TargetGroupName
-      ServiceRoleArn: arn:aws:iam::032465545722:role/CodeDeployRoleforECS
+              - Name: !GetAtt TargetGroup1.TargetGroupName
+              - Name: !GetAtt TargetGroup2.TargetGroupName
+      ServiceRoleArn: !GetAtt CodeDeployRole.Arn
       ECSServices:
-        - ClusterName: !Sub ${Env}--${System}--ecs--cluster
-          ServiceName: !Sub ${Env}--${System}--esv
+        - ClusterName: !Sub ${System}-${Env}-ecs-cluster
+          ServiceName: !Sub ${System}-${Env}-ecs-sv
       Tags: []
     DependsOn:
       - CodeDeployApplication
   CodeDeployApplication:
     Type: AWS::CodeDeploy::Application
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      ApplicationName: !Sub ${Env}--${System}--cd--app
+      ApplicationName: !Sub ${System}-${Env}-cd-app
       ComputePlatform: ECS
       Tags: []
     DependsOn:
       - EcsService
-  LoadBalancer:
+  ApplicationLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Type: application
-      Name: !Sub ${Env}--${System}--alb
+      Name: !Sub ${System}-${Env}-alb-web
       SecurityGroups:
-        Fn::Split:
-          - ","
-          - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--system--sg
+        - Fn::ImportValue: !Sub ${System}-${Env}-network-stack-sg-id
       Subnets:
         Fn::Split:
           - ","
-          - Fn::ImportValue: !Sub ${Env}--${System}--network--stack--public--subnet
+          - Fn::ImportValue: !Sub ${System}-${Env}-network-stack-public-subnet-ids
 Outputs:
   CodeDeployAppName:
     Description: CodeDeploy Application Name
     Value: !Ref CodeDeployApplication
     Export:
-      Name: !Sub ${AWS::StackName}--cd--app
+      Name: !Sub ${AWS::StackName}-cd-app-name
   CodeDeployDGName:
     Description: CodeDeploy Deployment Group Name
     Value: !Ref CodeDeployDeploymentGroup
     Export:
-      Name: !Sub ${AWS::StackName}--cd--dg
+      Name: !Sub ${AWS::StackName}-cd-group-name

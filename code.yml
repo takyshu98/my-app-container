@@ -1,22 +1,26 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: CodePipeline For ECS Fargate Blue/Green Deploy with PlaceHolder
+Description: CodePipeline For ECS Fargate with Blue/Green Deploy
 Parameters:
-  Env:
-    Description: Environment
-    Type: String
   System:
     Description: System Name
     Type: String
+  Env:
+    Description: Environment
+    Type: String
+  FullRepositoryId:
+    Description: Full Repository Id
+    Type: String
+    Default: takyshu98/my-app-container
 Resources:
   CodeBuildServiceRole:
     Type: AWS::IAM::Role
-    UpdateReplacePolicy: "Retain"
-    DeletionPolicy: "Delete"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      RoleName: !Sub ${Env}--${System}--pipeline-cb--iar
+      RoleName: !Sub ${System}-${Env}-pipeline-role-cb
       Path: /
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: 2012-10-17
         Statement:
           - Effect: Allow
             Principal:
@@ -54,10 +58,10 @@ Resources:
 
   CodePipelineServiceRole:
     Type: AWS::IAM::Role
-    UpdateReplacePolicy: "Retain"
-    DeletionPolicy: "Delete"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      RoleName: !Sub ${Env}--${System}--pipeline-cp--iar
+      RoleName: !Sub ${System}-${Env}-role-cp
       Path: /
       AssumeRolePolicyDocument:
         Version: 2012-10-17
@@ -120,25 +124,27 @@ Resources:
               - Action:
                   - codestar-connections:UseConnection
                 Resource:
-                  - Fn::ImportValue: !Sub ${Env}--${System}--code--stack--connections
+                  - Fn::ImportValue: !Sub ${System}-${Env}-connections-stack-connections-arn
                 Effect: Allow
 
   CodePipelineArtifactsBucket:
     Type: AWS::S3::Bucket
-    UpdateReplacePolicy: "Retain"
-    DeletionPolicy: "Delete"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: aws:kms
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: True
-        BlockPublicPolicy: True
-        IgnorePublicAcls: True
-        RestrictPublicBuckets: True
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
   CodePipelineArtifactsBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       Bucket: !Ref CodePipelineArtifactsBucket
       PolicyDocument:
@@ -146,7 +152,7 @@ Resources:
           - Action: s3:*
             Condition:
               Bool:
-                aws:SecureTransport: "false"
+                aws:SecureTransport: false
             Effect: Deny
             Principal:
               AWS: "*"
@@ -156,12 +162,12 @@ Resources:
                 - ""
                 - - !GetAtt CodePipelineArtifactsBucket.Arn
                   - /*
-        Version: "2012-10-17"
+        Version: 2012-10-17
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
-    UpdateReplacePolicy: "Retain"
-    DeletionPolicy: "Delete"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       ServiceRole: !Ref CodeBuildServiceRole
       Artifacts:
@@ -175,15 +181,15 @@ Resources:
         ImagePullCredentialsType: CODEBUILD
         PrivilegedMode: false
         Type: LINUX_CONTAINER
-      Name: !Sub ${Env}--${System}--pipeline-cb
+      Name: !Sub ${System}-${Env}-cb-build
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
-    UpdateReplacePolicy: "Retain"
-    DeletionPolicy: "Delete"
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       RoleArn: !GetAtt CodePipelineServiceRole.Arn
-      Name: !Sub ${Env}--${System}--pipeline
+      Name: !Sub ${System}-${Env}-cp
       PipelineType: V2
       ExecutionMode: QUEUED
       ArtifactStore:
@@ -200,10 +206,10 @@ Resources:
                 Provider: CodeStarSourceConnection
               Configuration:
                 ConnectionArn:
-                  Fn::ImportValue: !Sub ${Env}--${System}--code--stack--connections
-                FullRepositoryId: "takyshu98/my-app-container"
-                BranchName: "main"
-                OutputArtifactFormat: "CODE_ZIP"
+                  Fn::ImportValue: !Sub ${System}-${Env}-connections-stack-connections-arn
+                FullRepositoryId: !Ref FullRepositoryId
+                BranchName: main
+                OutputArtifactFormat: CODE_ZIP
               RunOrder: 1
               OutputArtifacts:
                 - Name: SourceArtifact
@@ -236,9 +242,9 @@ Resources:
                 TaskDefinitionTemplateArtifact: SourceArtifact
                 TaskDefinitionTemplatePath: taskdef.json
                 ApplicationName:
-                  Fn::ImportValue: !Sub ${Env}--${System}--ecs-blue-green--stack--cd--app
+                  Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-cd-app-name
                 DeploymentGroupName:
-                  Fn::ImportValue: !Sub ${Env}--${System}--ecs-blue-green--stack--cd--dg
+                  Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-cd-group-name
                 Image1ArtifactName: BuildArtifact
                 Image1ContainerName: IMAGE1_NAME
               RunOrder: 1
@@ -246,10 +252,3 @@ Resources:
                 - Name: SourceArtifact
                 - Name: BuildArtifact
               Region: !Ref AWS::Region
-# ------------------------------------------------------------#
-# Outputs
-# ------------------------------------------------------------#
-Outputs:
-  PipelinelogicalID:
-    Description: logical ID.
-    Value: !Ref CodePipeline

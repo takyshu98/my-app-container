@@ -23,4 +23,4 @@ Outputs:
     Description: Code Connections
     Value: !Ref CodeConnections
     Export:
-      Name: !Sub ${AWS::StackName}-connections
+      Name: !Sub ${AWS::StackName}-connections-arn
