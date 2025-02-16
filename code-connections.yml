@@ -14,7 +14,7 @@ Resources:
     UpdateReplacePolicy: Delete
     Properties:
       ConnectionName: !Sub ${System}-${Env}-connections
-      ProviderType: "GitHub"
+      ProviderType: GitHub
       Tags:
         - Key: Name
           Value: !Sub ${System}-${Env}-connections
