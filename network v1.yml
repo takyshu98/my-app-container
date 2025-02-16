@@ -1,14 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: Network Stack
 Parameters:
-  System:
-    Description: System Name
-    Type: String
   Env:
     Description: Environment
     Type: String
+  System:
+    Description: System Name
+    Type: String
 Resources:
-  Vpc:
+  SystemVpc:
     Type: AWS::EC2::VPC
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -19,44 +18,26 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-vpc
-  InternetGateway:
+          Value: !Sub ${Env}--${System}--vpc
+  SystemInternetGateway:
     Type: AWS::EC2::InternetGateway
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-igw
-  VpcGatewayAttachment:
+          Value: !Sub ${Env}--${System}--igw
+  SystemVpcGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      InternetGatewayId: !Ref InternetGateway
-      VpcId: !Ref Vpc
-  PublicSubnetAz1:
+      InternetGatewayId: !Ref SystemInternetGateway
+      VpcId: !Ref SystemVpc
+  PublicAp1ASubnet:
     Type: AWS::EC2::Subnet
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      VpcId: !Ref Vpc
-      MapPublicIpOnLaunch: false
-      EnableDns64: false
-      AvailabilityZoneId: apne1-az1
-      PrivateDnsNameOptionsOnLaunch:
-        EnableResourceNameDnsARecord: false
-        HostnameType: ip-name
-        EnableResourceNameDnsAAAARecord: false
-      CidrBlock: 10.0.16.0/20
-      Ipv6Native: false
-      Tags:
-        - Key: Name
-          Value: !Sub ${System}-${Env}-subnet-public-endpoint-az1
-  PublicSubnetAz4:
-    Type: AWS::EC2::Subnet
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
-    Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref SystemVpc
       MapPublicIpOnLaunch: false
       EnableDns64: false
       AvailabilityZoneId: apne1-az4
@@ -68,15 +49,33 @@ Resources:
       Ipv6Native: false
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-subnet-public-endpoint-az4
-  BaseSecurityGroup:
+          Value: !Sub ${Env}--${System}--public--ap1a--sn
+  PublicAp1CSubnet:
+    Type: AWS::EC2::Subnet
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !Ref SystemVpc
+      MapPublicIpOnLaunch: false
+      EnableDns64: false
+      AvailabilityZoneId: apne1-az1
+      PrivateDnsNameOptionsOnLaunch:
+        EnableResourceNameDnsARecord: false
+        HostnameType: ip-name
+        EnableResourceNameDnsAAAARecord: false
+      CidrBlock: 10.0.16.0/20
+      Ipv6Native: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Env}--${System}--public--ap1c--sn
+  SystemSg:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      GroupName: !Sub ${System}-${Env}-sg-web
-      GroupDescription: !Sub ${System}-${Env}-sg-web
-      VpcId: !Ref Vpc
+      GroupName: !Sub ${Env}--${System}--system--sg
+      GroupDescription: !Sub ${Env}--${System}--system--sg
+      VpcId: !Ref SystemVpc
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
           IpProtocol: tcp
@@ -88,7 +87,7 @@ Resources:
           ToPort: 3000
         - IpProtocol: "-1"
           FromPort: -1
-          SourceSecurityGroupId: !GetAtt Vpc.DefaultSecurityGroup
+          SourceSecurityGroupId: !GetAtt SystemVpc.DefaultSecurityGroup
           ToPort: -1
       SecurityGroupEgress:
         - CidrIp: 0.0.0.0/0
@@ -97,39 +96,39 @@ Resources:
           ToPort: -1
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-sg-web
-  BaseRouteTable:
+          Value: !Sub ${Env}--${System}--system--sg
+  SystemRouteTable:
     Type: AWS::EC2::RouteTable
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      VpcId: !Ref Vpc
+      VpcId: !Ref SystemVpc
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-rtb-public
+          Value: !Sub ${Env}--${System}--system--rtb
   InternetGatewayRoute:
     Type: AWS::EC2::Route
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      RouteTableId: !Ref BaseRouteTable
+      RouteTableId: !Ref SystemRouteTable
       DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-  PublicSubnetAz1RouteTableAssociation:
+      GatewayId: !Ref SystemInternetGateway
+  Ap1ASubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      RouteTableId: !Ref BaseRouteTable
-      SubnetId: !Ref PublicSubnetAz1
-  PublicSubnetAz4RouteTableAssociation:
+      RouteTableId: !Ref SystemRouteTable
+      SubnetId: !Ref PublicAp1ASubnet
+  Ap1CSubnetRouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      RouteTableId: !Ref BaseRouteTable
-      SubnetId: !Ref PublicSubnetAz4
-  S3VpcEndpoint:
+      RouteTableId: !Ref SystemRouteTable
+      SubnetId: !Ref PublicAp1CSubnet
+  S3Endpoint:
     Type: AWS::EC2::VPCEndpoint
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
@@ -143,7 +142,7 @@ Resources:
       SecurityGroupIds: []
       SubnetIds: []
       ServiceNetworkArn: ""
-      VpcId: !Ref Vpc
+      VpcId: !Ref SystemVpc
       RouteTableIds: []
       ServiceName: com.amazonaws.ap-northeast-1.s3
       PolicyDocument:
@@ -156,20 +155,20 @@ Resources:
       VpcEndpointType: Gateway
       Tags:
         - Key: Name
-          Value: !Sub ${System}-${Env}-vpce-s3
+          Value: !Sub ${Env}--${System}--vpce--s3
 Outputs:
-  VpcId:
-    Description: VPC ID
-    Value: !Ref Vpc
+  SystemVpcId:
+    Description: System VPC ID
+    Value: !Ref SystemVpc
     Export:
-      Name: !Sub ${AWS::StackName}-vpc-id
-  SecurityGroupId:
-    Description: Security Group ID
-    Value: !Ref BaseSecurityGroup
+      Name: !Sub ${AWS::StackName}--vpc
+  SystemSgId:
+    Description: System Security Group ID
+    Value: !Ref SystemSg
     Export:
-      Name: !Sub ${AWS::StackName}-sg-id
+      Name: !Sub ${AWS::StackName}--system--sg
   PublicSubnetIds:
     Description: Public Subnet IDs
-    Value: !Join [",", [!Ref PublicSubnetAz1, !Ref PublicSubnetAz4]]
+    Value: !Join [",", [!Ref PublicAp1ASubnet, !Ref PublicAp1CSubnet]]
     Export:
-      Name: !Sub ${AWS::StackName}-public-subnet-ids
+      Name: !Sub ${AWS::StackName}--public--subnet

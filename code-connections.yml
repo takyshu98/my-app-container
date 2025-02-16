@@ -1,24 +1,26 @@
 AWSTemplateFormatVersion: 2010-09-09
+Description: Code Connections Stack
 Parameters:
-  Env:
-    Description: Environment
-    Type: String
   System:
     Description: System Name
     Type: String
+  Env:
+    Description: Environment
+    Type: String
 Resources:
   CodeConnections:
-    UpdateReplacePolicy: Retain
     Type: AWS::CodeConnections::Connection
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
-      ConnectionName: !Sub ${Env}--${System}--connections
+      ConnectionName: !Sub ${System}-${Env}-connections
       ProviderType: "GitHub"
       Tags:
         - Key: Name
-          Value: !Sub ${Env}--${System}--connections
+          Value: !Sub ${System}-${Env}-connections
 Outputs:
   CodeConnections:
     Description: Code Connections
     Value: !Ref CodeConnections
     Export:
-      Name: !Sub ${AWS::StackName}--connections
+      Name: !Sub ${AWS::StackName}-connections
