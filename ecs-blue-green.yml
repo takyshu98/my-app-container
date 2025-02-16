@@ -84,7 +84,7 @@ Resources:
               AppProtocol: "http"
               Protocol: "tcp"
               HostPort: 3000
-              Name: !Sub ${Env}--${System}--container--3000--tcp
+              Name: ecs-container-3000-tcp
           DockerSecurityOptions: []
           SystemControls: []
           Command: []
@@ -278,6 +278,11 @@ Resources:
           - ","
           - Fn::ImportValue: !Sub ${System}-${Env}-network-stack-public-subnet-ids
 Outputs:
+  EcsTaskDefinitionArn:
+    Description: ECS Task Definition Arn
+    Value: !Ref EcsTaskDefinition
+    Export:
+      Name: !Sub ${AWS::StackName}-ecs-td-arn
   CodeDeployAppName:
     Description: CodeDeploy Application Name
     Value: !Ref CodeDeployApplication

@@ -224,6 +224,10 @@ Resources:
               Configuration:
                 ProjectName: !Ref CodeBuildProject
               RunOrder: 1
+              EnvironmentVariables:
+                - Name: ECS_TASK_DEFINITION_ARN
+                  Value:
+                    Fn::ImportValue: !Sub ${System}-${Env}-ecs-bluegreen-stack-ecs-td-arn
               InputArtifacts:
                 - Name: SourceArtifact
               OutputArtifacts:
